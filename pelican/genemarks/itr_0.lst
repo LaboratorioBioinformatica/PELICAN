@@ -1,0 +1,12 @@
+# GeneMark.hmm-2 LST format
+# GeneMark.hmm-2 prokaryotic version: 1.25_lic
+# File with sequence: tmpseq.fna
+# File with MetaGeneMark parameters: /home/usuario/Projects/GeneMarkS2/gms2_linux_64/mgm_11.mod
+# translation table: 11
+# output date start: Mon Jul 28 17:22:43 2025
+
+# sequence-region 0 0
+SequenceID: anydef
+
+# output date end: Mon Jul 28 17:22:43 2025
+# Done with file: tmpseq.fna

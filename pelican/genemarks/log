@@ -1,0 +1,5 @@
+/home/usuario/Projects/GeneMarkS2/gms2_linux_64/gmhmmp2 -M /home/usuario/Projects/GeneMarkS2/gms2_linux_64/mgm_11.mod -s test.fasta -o tmp_mgm_11.gff -f gff
+/home/usuario/Projects/GeneMarkS2/gms2_linux_64/gmhmmp2 -M /home/usuario/Projects/GeneMarkS2/gms2_linux_64/mgm_4.mod -s test.fasta -o tmp_mgm_4.gff -f gff
+echo '>anydef' > tmpseq.fna
+grep -v '>' test.fasta | tr '[:lower:]' '[:upper:]' >> tmpseq.fna
+/home/usuario/Projects/GeneMarkS2/gms2_linux_64/gmhmmp2 -M /home/usuario/Projects/GeneMarkS2/gms2_linux_64/mgm_11.mod -s tmpseq.fna -o itr_0.lst 
