@@ -28,6 +28,8 @@ We recommend the installation via pip is done using conda environments, which wi
 
 #### 1 - Conda Env
 ```bash
+git clone https://github.com/LaboratorioBioinformatica/PELICAN.git
+cd PELICAN
 conda env create -n pelican --file PELICAN.yml
 
 #Before running PELICAN for the first time, please run
@@ -35,12 +37,11 @@ sudo apt install -y podman golang-github-containers-common uidmap slirp4netns fu
 ```
 #### Installation
 
-Installation can be done by simply cloning the repository:
+Installation can be done by installing PELICAN from the cloned repository:
 
 ```bash
 conda activate pelican #Conda env created above
-git clone https://github.com/LaboratorioBioinformatica/PELICAN.git
-cd PELICAN
+#Make sure to be inside the PELICAN folder
 pip install . -r requirements.txt
 ```
 
