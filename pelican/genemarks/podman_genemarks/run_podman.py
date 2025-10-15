@@ -1,12 +1,9 @@
 import subprocess
 import os
 
-# input_path = "/home/usuario/Projects/GeneMarkS/teste/phage_Aloeri.fasta"
-# output_dir = "/home/usuario/Projects/GeneMarkS/teste/teste_2"
-
 def run_podman(input_path, output_dir):
     if not os.path.isfile(input_path):
-        print(f"Arquivo FASTA não encontrado: {input_path}")
+        print(f"FASTA file not found: {input_path}")
         return
 
     os.makedirs(output_dir, exist_ok=True)  # Garante que o diretório de saída existe
@@ -26,30 +23,28 @@ def run_podman(input_path, output_dir):
     cmd = [
         "podman", "run", "--rm", "--entrypoint", "",
         "-v", f"{os.path.abspath(fasta_dir)}:/data",
-        "-v", f"{os.path.abspath(output_dir)}:/output",  # usa caminho absoluto
+        "-v", f"{os.path.abspath(output_dir)}:/output",
         "-v", f"{key}:/gm_key.gz",
         "-w", "/opt/gmsuite",
         "genemark",
         "bash", "-c",
         (
+            f"exec > /output/genemark_execution.log 2>&1 && "
+            f"export LC_ALL=C && "  # Força idioma inglês
+            f"echo 'Starting GeneMark processing...' && "
+            f"echo 'Input file: {fasta}' && "
+            f"echo 'Working directory: /opt/gmsuite' && "
             f"cp /data/{fasta} . && "
+            f"echo 'FASTA file copied successfully' && "
             f"gunzip -c /gm_key.gz > ~/.gm_key && "
+            f"echo 'License key extracted successfully' && "
+            f"echo 'Running GeneMark...' && "
             f"./gmsn.pl --phage {fasta} && "
-            f"cp {fasta}.lst /output/"
+            f"echo 'GeneMark execution completed' && "
+            f"cp {fasta}.lst /output/ && "
+            f"echo 'Output file copied to /output/' && "
+            f"echo 'Process finished successfully'"
         )
     ]
 
     result = subprocess.run(cmd, capture_output=True, text=True)
-
-    # if result.returncode != 0:
-    #     print("Erro ao rodar GeneMark:", result.stderr)
-    # else:
-    #     if os.path.exists(output_lst):
-    #         with open(output_lst) as f:
-    #             output = f.read()
-    #         print("Resultado do GeneMark:")
-    #         print(output)
-    #     else:
-    #         print("Arquivo de saída não encontrado:", output_lst)
-
-# run_podman(input_path, output_dir)
