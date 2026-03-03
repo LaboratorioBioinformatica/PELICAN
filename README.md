@@ -12,7 +12,7 @@ And from those find the best combination of genes predicted by each tool.
 
 ### Pipeline
 
-![PIPELINE](Pelican_overview.svg)
+![PIPELINE](Pelican_overview.png)
 
 1. Gene prediction using all annotation tools.
 2. Extracting gene coordinates from the output of each tool.
