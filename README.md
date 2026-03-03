@@ -79,3 +79,8 @@ pelican -i your_genome.fasta --output_path ./results
 ```bash
 pelican -i example_genome.fasta --output_path ./results
 ```
+
+### Test data and pre-runned outputs
+
+Test data is available on the folder [test_results](pelican/test_data/test_results).  
+For the same test genomes, pre-runned results are available for analysis on the folder [test_results](pelican/test_data/test_results).  
