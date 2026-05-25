@@ -137,10 +137,15 @@ COORDINATE SYSTEM NOTES:
 
 import pandas as pd
 import os
+import json
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 import sys
-sys.stderr = open(os.devnull, 'w')
+# sys.stderr = open(os.devnull, 'w')
 sys.path.append(os.path.join(os.path.dirname(__file__), '../genemarks'))
+
+from unittest.mock import MagicMock
+import types
+
 from pelican.genemarks.python_wrapper import GeneMarkS2Wrapper
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
@@ -151,7 +156,6 @@ import subprocess
 from tqdm import tqdm
 import io
 from Bio.Seq import Seq
-import sys
 import textwrap
 import argparse
 import random
@@ -187,21 +191,30 @@ import joblib
 from pathlib import Path
 # Force PyTorch to use CPU only
 # import os
+os.environ['TRITON_DISABLE'] = '1'  # Disable Triton JIT compiler
 os.environ['CUDA_VISIBLE_DEVICES'] = ''  # Hide CUDA devices
 os.environ['CUDA_LAUNCH_BLOCKING'] = '1'  # Force synchronous CUDA operations
 
 import torch
+
  # Use single thread for CPU computations
+torch.cuda.is_available = lambda: False
+torch.cuda.device_count = lambda: 0
+torch.cuda.get_device_capability = lambda *args: (0, 0)
+torch.is_cuda = False
+
+property_is_cuda = property(lambda self: False)
+torch.Tensor.is_cuda = property_is_cuda
 
 import h5py
-from transformers import T5EncoderModel, T5Tokenizer
+from transformers import AutoConfig, T5EncoderModel, T5Tokenizer
 import torch.nn as nn
 
-from transformers import BertTokenizer, BertModel
+from transformers import BertTokenizer, BertModel, AutoTokenizer, AutoModel, BertConfig
 
 # Disable CUDA after importing torch
-if torch.cuda.is_available():
-    torch.cuda.is_available = lambda: False
+# if torch.cuda.is_available():
+#     torch.cuda.is_available = lambda: False
 
 import warnings
 warnings.filterwarnings('ignore')
@@ -397,46 +410,48 @@ def autcnn_score(observed_error):
 
 # Definir a classe CNNAutoencoder igual ao treinamento
 class CNNAutoencoder(nn.Module):
-    def __init__(self, input_dim, latent_dim=128):
+    def __init__(self, input_dim, latent_dim=128):  # ✅ Espaço latente REDUZIDO
         super(CNNAutoencoder, self).__init__()
         self.input_dim = input_dim
         self.encoder_conv = nn.Sequential(
             nn.Conv1d(1, 16, kernel_size=5, stride=2, padding=2),
             nn.BatchNorm1d(16),
             nn.ReLU(),
-            nn.Dropout(0.5),
+            nn.Dropout(0.05),  # ✅ AUMENTADO de 0.2 para 0.4
+            
             nn.Conv1d(16, 32, kernel_size=5, stride=2, padding=2),
             nn.BatchNorm1d(32),
             nn.ReLU(),
-            nn.Conv1d(32, 48, kernel_size=5, stride=2, padding=2),
-            nn.BatchNorm1d(48),
-            nn.ReLU()
+            nn.Dropout(0.05),  # ✅ AUMENTADO de 0.1 para 0.3
+            
+            # ✅ REMOVER terceira camada convolucional para simplificar
         )
-        # Calcular o tamanho após as convoluções
+        
         with torch.no_grad():
             dummy = torch.zeros(1, 1, input_dim)
             conv_out = self.encoder_conv(dummy)
-            self.conv_out_shape = conv_out.shape  # (batch, channels, length)
+            self.conv_out_shape = conv_out.shape
             conv_flatten_dim = conv_out.numel() // conv_out.shape[0]
+            
         self.encoder_fc = nn.Sequential(
             nn.Flatten(),
             nn.Linear(conv_flatten_dim, latent_dim),
-            nn.ReLU()
+            nn.ReLU(),
+            nn.Dropout(0.05)  # ✅ Dropout no espaço latente
         )
+        
         self.decoder_fc = nn.Sequential(
             nn.Linear(latent_dim, conv_flatten_dim),
             nn.ReLU()
         )
+        
         self.decoder_deconv = nn.Sequential(
             nn.Unflatten(1, self.conv_out_shape[1:]),
-            nn.ConvTranspose1d(48, 32, kernel_size=5, stride=2, padding=2, output_padding=1),
-            nn.BatchNorm1d(32),
-            nn.ReLU(),
             nn.ConvTranspose1d(32, 16, kernel_size=5, stride=2, padding=2, output_padding=1),
             nn.BatchNorm1d(16),
             nn.ReLU(),
             nn.ConvTranspose1d(16, 1, kernel_size=5, stride=2, padding=2, output_padding=1),
-            nn.Sigmoid()
+            nn.Sigmoid()  # ✅ RETORNAR Sigmoid para limitar saída [0,1]
         )
 
     def forward(self, x):
@@ -446,7 +461,7 @@ class CNNAutoencoder(nn.Module):
         x = self.decoder_fc(x)
         x = self.decoder_deconv(x)
         x = x.squeeze(1)
-        # Ajuste de shape para garantir saída igual ao input
+        
         if x.shape[1] > self.input_dim:
             x = x[:, :self.input_dim]
         elif x.shape[1] < self.input_dim:
@@ -527,44 +542,99 @@ relw_cols = [f'relweight_{c}' for c in valid_codons]
 
 ######################################################
 
-def seq_to_kmers(seq, k=3):
-# Split sequence into k-mers.
-    seq = seq.upper().replace('N', '')  # Remove N
-    return [seq[i:i+k] for i in range(len(seq)-k+1)]
+# def seq_to_kmers(seq, k=3):
+# # Split sequence into k-mers.
+#     seq = seq.upper().replace('N', '')  # Remove N
+#     return [seq[i:i+k] for i in range(len(seq)-k+1)]
 
-def get_dnabert_embedding(seq, k=3, max_len=510):
-# Get DNABERT embedding for a sequence.
-    # Force CPU usage for all torch operations
-    device = torch.device('cpu')
-    
-    # Load models with CPU device
-    tokenizer = BertTokenizer.from_pretrained("zhihan1996/DNA_bert_6")
-    model = BertModel.from_pretrained("zhihan1996/DNA_bert_6")
-    model.to(device)
-    model.eval()
-    
-    kmers = seq_to_kmers(seq, k)
-    if len(kmers) > max_len:
-        kmers = kmers[:max_len]
-    tokens = tokenizer(' '.join(kmers), return_tensors='pt')
-    
-    # Ensure tokens are on CPU
-    tokens = {k: v.to(device) for k, v in tokens.items()}
-    
-    with torch.no_grad():
-        outputs = model(**tokens)
-    embedding = outputs.last_hidden_state.squeeze().cpu().numpy()
-    return embedding
+def seq_to_kmers(seq: str, k: int = 6) -> str:
+    seq = seq.strip().upper().replace(" ", "")
+    # gera kmers sobrepostos e junta com espaço (formato esperado pelo DNABERT v1)
+    kmers = [seq[i:i+k] for i in range(len(seq) - k + 1)]
+    return " ".join(kmers)
+
+def dnabert6_embed(seqs, model, tokenizer, device, pooling="mean"):
+    """
+    pooling:
+      - "cls": usa o embedding do token [CLS]
+      - "mean": mean pooling dos tokens (ignorando padding)
+    retorna: tensor [batch, hidden_size]
+    """
+    # if device is None:
+    #     device = "cuda" if torch.cuda.is_available() else "cpu"
+
+    # tokenizer = AutoTokenizer.from_pretrained(model_name, do_lower_case=False)
+    # model = AutoModel.from_pretrained(model_name).to(device)
+    # model.eval()
+
+    # DNABERT-6 espera kmers separados por espaço
+    kmers_text = [seq_to_kmers(s, k=6) for s in seqs]
+
+# 1) tokeniza (pode retornar listas)
+    enc = tokenizer(kmers_text, add_special_tokens=True, truncation=True)
+
+    # 2) pad + converte para tensores torch
+    enc = tokenizer.pad(enc, padding=True, return_tensors="pt")
+
+    # 3) move para device
+    enc = {k: v.to(device) for k, v in enc.items()}
+
+
+    out = model(**enc)  # out.last_hidden_state: [B, T, H]
+    hidden = out.last_hidden_state
+
+    if pooling == "cls":
+        emb = hidden[:, 0, :]  # token CLS
+    elif pooling == "mean":
+        # mean pooling com máscara para ignorar padding
+        mask = enc["attention_mask"].unsqueeze(-1)  # [B, T, 1]
+        summed = (hidden * mask).sum(dim=1)
+        counts = mask.sum(dim=1).clamp(min=1)
+        emb = summed / counts
+    else:
+        raise ValueError("pooling deve ser 'cls' ou 'mean'")
+
+    return emb.cpu().detach().numpy()
 
 def embedding_power_spectrum_mean(embedding):
-# Compute mean power spectrum from embedding.
-    # Se for 1D, transforma em 2D
-    if embedding.ndim == 1:
-        embedding = embedding.reshape(-1, 1)
-    fft_vals = np.fft.fft(embedding, axis=0)
+    # Garantir que é 1D
+    if embedding.ndim > 1:
+        embedding = embedding.flatten()
+    
+    # Calcular FFT no vetor 1D
+    fft_vals = np.fft.fft(embedding)
+    
+    # Calcular espectro de potência
     power_spectrum = np.abs(fft_vals) ** 2
-    mean_power = power_spectrum.mean(axis=0)
-    return mean_power
+    
+    # Retornar como array 1D (achatar se necessário)
+    return power_spectrum.flatten()
+
+MODEL_ID = "zhihan1996/DNA_bert_6"
+
+def load_dnabert6(model_id=MODEL_ID, device=None, hf_token=None):
+    """
+    Baixa/carrega tokenizer+model.
+    Se hf_token for necessário, passe via argumento ou set HF_TOKEN no ambiente.
+    """
+    if device is None:
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+
+    if hf_token is None:
+        hf_token = os.environ.get("HF_TOKEN")
+
+    tokenizer = AutoTokenizer.from_pretrained(
+        model_id,
+        do_lower_case=False,
+        token=hf_token,          # ok mesmo se None
+    )
+    model = AutoModel.from_pretrained(
+        model_id,
+        token=hf_token,          # ok mesmo se None
+    ).to(device)
+    model.eval()
+    return tokenizer, model, device
+
 #############################
 ## TESTE DE FUSÃO DE GENES ##
 #############################
@@ -629,7 +699,7 @@ arg_parser.add_argument("--fill", action="store_true", help="Force filling of mi
 arg_parser.add_argument("--threads", type=int, default=4, help="Number of threads to use -- default: 4")
 
 if len(sys.argv)==1:
-    arg_parser.print_help(sys.stderr)
+    arg_parser.print_help(sys.stdout)
     sys.exit(0) 
 
 def show_version_info():
@@ -700,7 +770,6 @@ def run_analysis():
     if '__file__' in globals():
         path = os.path.realpath(__file__)
     else:
-        import sys
         path = os.path.realpath(sys.argv[0])
     
     # getting primary script directory full path
@@ -1268,15 +1337,18 @@ def run_analysis():
         # print(color_text(f"HMM transition matrix (non-consensus):\n{transmat}"))
 
               # Atualiza kept_for_structural_analysis para conter apenas genes filtrados
-        kept_for_structural_analysis = kept_for_structural_analysis[
-            kept_for_structural_analysis.apply(
+        phanotate_mask = kept_for_structural_analysis["Tool"] == "Phanotate"
+        phanotate_filtered = kept_for_structural_analysis[phanotate_mask][
+            kept_for_structural_analysis[phanotate_mask].apply(
                 lambda row: any(
                     row['Start'] == start and row['End'] == end
                     for start, end, _ in filtered_genes
                 ),
                 axis=1
             )
-        ].copy()
+        ]
+        other_tools = kept_for_structural_analysis[~phanotate_mask]
+        kept_for_structural_analysis = pd.concat([other_tools, phanotate_filtered], ignore_index=True)
         print(color_text(f"{len(kept_for_structural_analysis)} non-consensus genes retained after HMM filtering", "yellow"))
 
         ###################################
@@ -1343,6 +1415,10 @@ def run_analysis():
         coords_df["Start"] = coords_df["Start"].astype(int)
         coords_df["End"] = coords_df["End"].astype(int)
         
+        genome_record = next(SeqIO.parse(input_file, "fasta"))
+        genome_seq = str(genome_record.seq)
+
+        
         gene_data_list = []
         for index, row in coords_df.iterrows():
             phage_name = genome_id
@@ -1350,71 +1426,79 @@ def run_analysis():
             start = int(row['Start'])  # Already 1-based
             end = int(row['End'])      # Already 1-based
         
-            for record in SeqIO.parse(input_file, "fasta"):
-                # Calculate context region with 50 bases before and after (1-based coordinates)
-                context_start = max(1, start)
-                context_end = min(len(record.seq), end)
-                # Use helper function for consistent coordinate handling
-                gene_seq = extract_sequence_from_genome(str(record.seq), context_start, context_end, strand=1)
+            
+            # Calculate context region with 50 bases before and after (1-based coordinates)
+            context_start = max(1, start)
+            context_end = min(len(genome_seq), end)
+            # Use helper function for consistent coordinate handling
+            gene_seq = extract_sequence_from_genome(genome_seq, context_start, context_end, strand=1)
                 
-                # Criar um DataFrame com as coordenadas e a sequência do gene
-                gene_data = {
-                    'GeneUniqueID': phage_orf,
-                    'Start': start,
-                    'End': end,
-                    'Gene_Sequence': gene_seq
-                }
-                gene_data_list.append(gene_data)
+            # Criar um DataFrame com as coordenadas e a sequência do gene
+            gene_data = {
+                'GeneUniqueID': phage_orf,
+                'Start': start,
+                'End': end,
+                'Gene_Sequence': gene_seq
+            }
+            gene_data_list.append(gene_data)
         
         forCNN_df = pd.DataFrame(gene_data_list)
+        # print(forCNN_df.shape)
         #######################
         ## get DNABert model ##
         #######################
-        
-        # Force CPU usage for DNA-BERT models
-        device = torch.device('cpu')
-        tokenizer = BertTokenizer.from_pretrained("zhihan1996/DNA_bert_6")
-        model = BertModel.from_pretrained("zhihan1996/DNA_bert_6")
-        model.to(device)
-        model.eval()
-        
+
+        tokenizer, model, device = load_dnabert6()
         #Input data
-        adjusted_input = forCNN_df["Gene_Sequence"].apply(get_dnabert_embedding)
-        power_input_df = pd.DataFrame(adjusted_input.apply(embedding_power_spectrum_mean).tolist())
+        scaler = joblib.load(os.path.join(models_dir, "minmax_scaler.pkl"))
+
+        expected_cols = scaler.feature_names_in_ if hasattr(scaler, 'feature_names_in_') else power_input_df.columns
+        adjusted_input = []
+        for sequence in forCNN_df["Gene_Sequence"].values:
+            embedding = dnabert6_embed([sequence], model, tokenizer, device)
+            power_spec = embedding_power_spectrum_mean(embedding)
+            adjusted_input.append(power_spec)
+        power_input_df = pd.DataFrame(adjusted_input)
+        power_input_df.columns = [f"Embedding_{i}" for i in range(1, power_input_df.shape[1] + 1)]
+        # print("Done with EMbedding")
         ## ADD RSCU
         codon_feats = forCNN_df["Gene_Sequence"].apply(codon_features)
         codon_feats_df = pd.DataFrame(codon_feats.tolist(), columns=codon_cols + rscu_cols + relw_cols)
         # Concatenate the power spectrum features with the RSCU features
-        power_input_df = pd.concat([power_input_df.reset_index(drop=True), codon_feats_df.reset_index(drop=True)], axis=1)
+        complete_data = pd.concat([power_input_df.reset_index(drop=True), codon_feats_df.reset_index(drop=True)], axis=1)
+        complete_data = complete_data[expected_cols]
+        complete_data.to_csv(os.path.join(final_outdir, "Complete_CNN_input.csv"), index=False)
         # norm_input = np.array(power_input_df).astype(np.float32)
         # max_value = norm_input.max()
-        normalized = power_input_df.apply(min_max, axis=0)
-        print(normalized.to_numpy().shape)
+        # normalized = power_input_df.apply(min_max, axis=0)
+        normalized = scaler.transform(complete_data)
+        normalized_df = pd.DataFrame(normalized, columns=expected_cols)
+        normalized_df.to_csv(os.path.join(final_outdir, "CNN_input.csv"), index=False)
+        print(normalized.shape)
         
         #Prepare data for CNN
         # Force CPU usage for all torch operations
-        device = torch.device('cpu')
         
-        input_dim = power_input_df.shape[1]
+        input_dim = complete_data.shape[1]
         latent_dim = 128  # Dimensão do espaço latente
-        cnn_model = CNNAutoencoder(input_dim, latent_dim)
+        cnn_model = CNNAutoencoder(input_dim, latent_dim=latent_dim)
         
         # Load model weights to CPU explicitly
-        cnn_model.load_state_dict(torch.load(os.path.join(models_dir, "cnn_autoencoder_trained_full.pt"), map_location=device))
+        cnn_model.load_state_dict(torch.load(os.path.join(models_dir, "cnn_autoencoder_trained.pt"), map_location=device))
         cnn_model.to(device)
         cnn_model.eval()
         
         
         # Recuperar o erro de reconstrução para cada entrada e filtrar pelo threshold
-        threshold = 0.1 #Erro medio calculando na validacao (90% dos erros)
+        threshold = 0.03 #Erro medio calculando na validacao (90% dos erros)
         with torch.no_grad():
-            X_valid_tensor = torch.tensor(normalized.to_numpy().astype(np.float32)).to(device)
+            X_valid_tensor = torch.tensor(normalized.astype(np.float32)).to(device)
             print(X_valid_tensor.shape)
             X_valid_recon = cnn_model(X_valid_tensor).cpu().numpy()
-            mse_por_amostra = np.mean((X_valid_recon - normalized)**2, axis=1)
+            mse_por_amostra = np.mean((X_valid_recon - normalized.astype(np.float32))**2, axis=1)
         
         CNN_SCORE = autcnn_score(mse_por_amostra)
-        
+        print("Done with CNN analysis")        
 
 
         CNN_results_df = pd.DataFrame.from_dict(dict(zip(forCNN_df["GeneUniqueID"], CNN_SCORE)), orient="index", columns=["CNN_Score"])
@@ -1453,12 +1537,12 @@ def run_analysis():
         final_score_data["Final_Score"] = (final_score_data["Score"] + final_score_data["CNN_Score"])/2
         final_score_data.to_csv(final_score_output)
 
-        filtered_score = final_score_data[(final_score_data["Final_Score"] >= 0.66)]
+        filtered_score = final_score_data[(final_score_data["Final_Score"] >= 0.67)]
         score_index = filtered_score["qseqid"].tolist()
 
         # cnn_only = final_score_data[(final_score_data["Score"] == 0) | (final_score_data["Final_Score"] < 0.66)]
         cnn_only = final_score_data[(final_score_data["Score"] == 0)]
-        cnn_only = cnn_only[cnn_only["CNN_Score"] >= 0.95][["qseqid", "Tool_CNN"]].values.tolist()
+        cnn_only = cnn_only[cnn_only["CNN_Score"] >= 0.994][["qseqid", "Tool_CNN"]].values.tolist()
 
     #################
     ## RUN ARAGORN ##
@@ -1591,9 +1675,10 @@ def run_analysis():
                 continue
             start1, end1 = int(gene1[0]), int(gene1[1])
             start2, end2 = int(gene2[0]), int(gene2[1])
-            # Calcular sobreposição
+            # Calcular sobreposição (percentual e em bp)
             overlap = calcular_sobreposicao(start1, end1, start2, end2)
-            if overlap >= 0.5: #tava em 0.8
+            overlap_bp = max(0, min(end1, end2) - max(start1, start2))
+            if overlap >= 0.8 or overlap_bp > 300:
                 # Recuperar sequências
                 seq1 = consensus_df_indexed.loc[id1, "Sequence"]
                 seq2 = consensus_df_indexed.loc[id2, "Sequence"]
@@ -1687,8 +1772,8 @@ def run_analysis():
                     curr_trna = overlapping_trnas[i]
                     
                     # Check if current tRNA is consecutive to previous (allowing some gap)
-                    # Consider tRNAs consecutive if they are within 500bp of each other
-                    gap_threshold = 500
+                    # Consider tRNAs consecutive if they are within 300bp of each other
+                    gap_threshold = 300
                     if curr_trna['trna_start'] - prev_trna['trna_end'] <= gap_threshold:
                         current_group.append(curr_trna)
                     else:
@@ -2051,5 +2136,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
     main()

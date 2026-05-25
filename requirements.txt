@@ -84,10 +84,10 @@ tensorboard-data-server==0.7.2
 tensorflow==2.19.0
 termcolor==3.0.1
 threadpoolctl==3.5.0
-tokenizers==0.21.1
+tokenizers==0.23.1
 torch==2.7.0
 tqdm==4.66.6
-transformers==4.51.3
+transformers==5.7.0
 triton==3.3.0
 tzdata==2024.2
 umap-learn==0.5.7

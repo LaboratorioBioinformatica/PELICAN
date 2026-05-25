@@ -73,8 +73,8 @@ def evaluate_genes_hmm(starts, overlaps, ends, region_sets, n_states=3, dynamic_
     logprob, posteriors = model.score_samples(X)
     # Filtrar genes por probabilidade dos estados início (0) ou fim (2) > 0.5
     filtered_genes = []
-    window = 13
-    prob_threshold_state = 0.6  # threshold para início/fim ESTAVA EM 0.6
+    window = 30
+    prob_threshold_state = 0.8  # threshold para início/fim ESTAVA EM 0.6
     # Para garantir que genes em regiões únicas não tenham qualquer sobreposição
     all_gene_coords = []
     for regions in region_sets:
@@ -90,22 +90,39 @@ def evaluate_genes_hmm(starts, overlaps, ends, region_sets, n_states=3, dynamic_
                 return False
         return True
 
-    for i, regions in enumerate(region_sets):
+    # Primeira passagem: avaliar quais genes sobrepostos passam no threshold
+    gene_passes = {}
+    for regions in region_sets:
         for start, end in regions:
-            region_probs = posteriors[start:end]  # shape: (gene_len, n_states)
-            gene_len = end - start
-            # Garante que o gene não tem qualquer sobreposição
+            if is_unique_region(start, end, all_gene_coords):
+                gene_passes[(start, end)] = True
+            else:
+                region_probs = posteriors[start:end]
+                initial_probs = region_probs[:window, 0]
+                final_probs = region_probs[-window:, 2]
+                high_start = np.any(initial_probs > prob_threshold_state)
+                high_end = np.any(final_probs > prob_threshold_state)
+                gene_passes[(start, end)] = bool(high_start or high_end)
+
+    # Segunda passagem: montar filtered_genes com regra de fallback
+    for regions in region_sets:
+        for start, end in regions:
             if is_unique_region(start, end, all_gene_coords):
                 filtered_genes.append((start, end, True))
             else:
-                # Probabilidades nas janelas
-                initial_probs = region_probs[:window, 0]  # início
-                final_probs = region_probs[-window:, 2]   # fim
-                high_start = np.any(initial_probs > prob_threshold_state)
-                high_end = np.any(final_probs > prob_threshold_state)
-                # Gene é aceito se início ou fim tem probabilidade > 0.5
-                if high_start or high_end:
+                if gene_passes[(start, end)]:
+                    # Gene passou no threshold normalmente
                     filtered_genes.append((start, end, False))
+                else:
+                    # Gene não passou — verifica se algum gene sobreposto passou
+                    any_overlap_passed = any(
+                        gene_passes[(s2, e2)]
+                        for s2, e2 in all_gene_coords
+                        if (s2, e2) != (start, end) and max(start, s2) < min(end, e2)
+                    )
+                    # Se nenhum gene sobreposto passou, mantém todos (fallback)
+                    if not any_overlap_passed:
+                        filtered_genes.append((start, end, False))
     return filtered_genes, score, model.transmat_
 
 if __name__ == "__main__":
