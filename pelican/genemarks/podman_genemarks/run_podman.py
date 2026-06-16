@@ -48,3 +48,6 @@ def run_podman(input_path, output_dir):
     ]
 
     result = subprocess.run(cmd, capture_output=True, text=True)
+    print(f"[PODMAN returncode]: {result.returncode}")
+    print(f"[PODMAN stdout]: {result.stdout}")
+    print(f"[PODMAN stderr]: {result.stderr}")
