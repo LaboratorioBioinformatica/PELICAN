@@ -46,6 +46,9 @@ pip install .
 
 #Sometimes the annotation tools do not install automatically
 pip install pyrodigal_gv phanotate 
+
+#make sure pandas version is < 3.0
+pip install "pandas<3.0"
 ```
 
 ### Error handeling

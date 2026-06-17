@@ -1230,9 +1230,12 @@ def run_analysis():
     upset_plot_df = upset_plot_df.T
     upset_plot_df = upset_plot_df.value_counts()
     
-    up_plot = upsetplot.UpSet(upset_plot_df, show_counts=True, intersection_plot_elements=7).plot()
-    plt.title("Shared genes between tools", fontsize=20)
-    plt.savefig(upset_output, dpi=300, facecolor="w")
+    try:
+        up_plot = upsetplot.UpSet(upset_plot_df, show_counts=True, intersection_plot_elements=7).plot()
+        plt.title("Shared genes between tools", fontsize=20)
+        plt.savefig(upset_output, dpi=300, facecolor="w")
+    except Exception as e:
+        print(color_text(f"Warning: UpsetPlot failed ({e}), skipping plot."))
     
     ############################
     ## First consensus filter ##
