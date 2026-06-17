@@ -195,7 +195,6 @@ os.environ['TRITON_DISABLE'] = '1'  # Disable Triton JIT compiler
 # os.environ['CUDA_VISIBLE_DEVICES'] = ''  # Hide CUDA devices
 # os.environ['CUDA_LAUNCH_BLOCKING'] = '1'  # Force synchronous CUDA operations
 os.environ['CUDA_VISIBLE_DEVICES'] = ''
-torch.cuda.is_available = lambda: False
 
 import torch
 
