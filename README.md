@@ -42,7 +42,7 @@ Installation can be done by installing PELICAN from the cloned repository:
 ```bash
 conda activate pelican #Conda env created above
 #Make sure to be inside the PELICAN folder
-pip install . -r requirements.txt
+pip install .
 ```
 
 ### Usage
