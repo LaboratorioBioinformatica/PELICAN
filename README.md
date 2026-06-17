@@ -44,8 +44,21 @@ conda activate pelican #Conda env created above
 #Make sure to be inside the PELICAN folder
 pip install .
 
-#Sometimes the pyrodigal_gv do not install automatically
-pip install pyrodigal_gv
+#Sometimes the annotation tools do not install automatically
+pip install pyrodigal_gv phanotate 
+```
+
+### Error handeling
+1. Error: OCI runtime error: crun: unknown version specified
+run:  
+```bash
+sudo apt install -y runc
+
+mkdir -p ~/.config/containers
+cat > ~/.config/containers/containers.conf << 'EOF'
+[engine]
+runtime = "runc"
+EOF
 ```
 
 ### Usage
