@@ -43,6 +43,9 @@ Installation can be done by installing PELICAN from the cloned repository:
 conda activate pelican #Conda env created above
 #Make sure to be inside the PELICAN folder
 pip install .
+
+#Sometimes the pyrodigal_gv do not install automatically
+pip install pyrodigal_gv
 ```
 
 ### Usage
