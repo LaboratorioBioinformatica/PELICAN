@@ -4,6 +4,7 @@ channels:
   - bioconda
   - conda-forge
   - defaults
+  - pytorch
 dependencies:
   - _libgcc_mutex=0.1=conda_forge
   - _openmp_mutex=4.5=2_gnu
@@ -321,6 +322,8 @@ dependencies:
   - python-fastjsonschema=2.21.1=pyhd8ed1ab_0
   - python-json-logger=2.0.7=pyhd8ed1ab_0
   - python_abi=3.12=5_cp312
+  - pytorch::cpuonly
+  - pytorch::pytorch
   - pytz=2024.2=pyhd8ed1ab_1
   - pyyaml=6.0.2=py312h178313f_2
   - pyzmq=26.2.0=py312hbf22597_3
