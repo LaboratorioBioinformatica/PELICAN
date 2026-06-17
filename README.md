@@ -46,6 +46,7 @@ pip install .
 
 #Sometimes the annotation tools do not install automatically
 pip install pyrodigal_gv phanotate hmmlearn
+pip install torch --index-url https://download.pytorch.org/whl/cpu
 ```
 
 ### Error handeling
