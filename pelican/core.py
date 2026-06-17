@@ -379,7 +379,7 @@ def convert_gff_to_gbk(input_gff, fasta_file, consensus_df):
                 if feature.type == "CDS":
                     # print(feature)
                     # aa = prot_records[i].seq
-                    if feature.strand == 1:
+                    if feature.location.strand == 1:
                         tmp_seq = Seq(subset_seqs[i]).translate(stop_symbol="")
                         feature.qualifiers.update(
                             {"ID": feature.qualifiers["ID"][0],"protein_id": feature.qualifiers["ID"][0], "locus_tag": feature.qualifiers["ID"][0],"product": subset_product[i],"translation": tmp_seq}  # from the aa seq
