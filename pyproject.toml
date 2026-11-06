@@ -1,42 +1,45 @@
 [build-system]
-requires = ["setuptools>=61.0", "wheel"]
+requires = ["setuptools>=64", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "pelican-annotation"
-version = "0.1.5"
+dynamic = ["version"]
 description = "Phage gEnome tooL for Inference of Consensus ANotation"
 readme = "README.md"
-requires-python = ">=3.8"
+requires-python = ">=3.10"
 license = {file = "LICENSE"}
 authors = [
-    {name = "PELICAN Team"},
+    {name = "Fernando Rossi", email = "fenobrerossi@gmail.com"},
 ]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Science/Research",
     "Topic :: Scientific/Engineering :: Bio-Informatics",
     "License :: OSI Approved :: MIT License",
+    "Operating System :: POSIX :: Linux",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.8",
-    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
 ]
 dependencies = [
-    "pandas>=1.3.0",
+    "pandas>=1.3.0,<3",
     "matplotlib>=3.3.0",
     "pyrodigal>=2.0.0",
+    "pyrodigal-gv>=0.3.0",
+    "phanotate>=1.6.0",
+    "setuptools<81",  # phanotate imports pkg_resources
+    "hmmlearn>=0.3.0",
     "biopython>=1.79",
     "tqdm>=4.62.0",
-    "scikit-learn>=1.0.0",
+    "scikit-learn>=1.0.0,<1.7",
     "mycolorpy>=1.5.0",
-    "numpy>=1.21.0",
+    "numpy>=1.21.0,<2.3",
     "scipy>=1.7.0",
-    "pygenomeviz>=0.4.0",
+    "pygenomeviz>=1.0.0",
     "upsetplot>=0.6.0",
     "bcbio-gff>=0.6.9",
-    "protpy>=1.0.0",
     "joblib>=1.1.0",
     "torch>=1.9.0",
     "h5py>=3.3.0",
@@ -44,14 +47,31 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/FefoRossi/PELICAN"
-Repository = "https://github.com/FefoRossi/PELICAN"
+Homepage = "https://github.com/LaboratorioBioinformatica/PELICAN"
+Repository = "https://github.com/LaboratorioBioinformatica/PELICAN"
 
 [project.scripts]
 pelican = "pelican.cli:cli_main"
+pelican-setup = "pelican.setup_check:main"
+
+[tool.setuptools.dynamic]
+version = {attr = "pelican.__version__"}
 
 [tool.setuptools.packages.find]
 include = ["pelican*"]
+exclude = ["pelican.test_data*"]
+
+[tool.setuptools]
+include-package-data = false
 
 [tool.setuptools.package-data]
-pelican = ["databases/*", "models/*"]
+pelican = [
+    "databases/*",
+    "models/*.py",
+    "models/cnn_autoencoder_trained.pt",
+    "models/minmax_scaler.pkl",
+    "genemarks/python_wrapper.py",
+    "genemarks/podman_genemarks/*",
+    "genemarks/gmsuite/**/*",
+    "genemarks/selftest/*",
+]

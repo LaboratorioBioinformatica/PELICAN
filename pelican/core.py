@@ -173,7 +173,7 @@ import tempfile
 from scipy.spatial.distance import euclidean
 
 ## TESTE COM GENEMARKS ##
-from pelican.genemarks.podman_genemarks.run_podman import run_podman
+from pelican.genemarks.podman_genemarks.run_podman import run_podman, prepare_genemark
 
 from pygenomeviz import GenomeViz
 from pygenomeviz.parser import Genbank
@@ -699,9 +699,6 @@ arg_parser.add_argument("--create_blastdb", action="store_true", help="Create BL
 arg_parser.add_argument("--fill", action="store_true", help="Force filling of missing genes empty coordinates")
 arg_parser.add_argument("--threads", type=int, default=4, help="Number of threads to use -- default: 4")
 
-if len(sys.argv)==1:
-    arg_parser.print_help(sys.stdout)
-    sys.exit(0) 
 
 def show_version_info():
 # Display version information for PELICAN.
@@ -726,6 +723,10 @@ def run_analysis():
     #######################
     ## Parsing arguments ##
     #######################
+
+    if len(sys.argv)==1:
+        arg_parser.print_help(sys.stdout)
+        sys.exit(0)
 
     args = arg_parser.parse_args()
     args_dict = vars(arg_parser.parse_args())
@@ -939,21 +940,8 @@ def run_analysis():
     #########################################
     ## Looking for the GenemarkS container ##
     #########################################
-    podman_container = os.path.join(primary_script_path, "genemarks", "podman_genemarks", "genemark_image.tar.gz")
-    if not os.path.exists(podman_container):
-        print(color_text("GeneMarkS container not found"))
-        sys.exit(1)
-    else:
-        print(color_text("GeneMarkS container found"))
-    
-    genemark_install = subprocess.run(f"podman images | grep genemark", shell=True, text=True, stdout=subprocess.PIPE)
-    if genemark_install.returncode != 0:
-        print(color_text("GeneMarkS container not found in podman, importing...", "yellow"))
-        import_cmd = f"podman load -i {podman_container}"
-        subprocess.run(import_cmd, shell=True)
-        print(color_text("GeneMarkS container imported successfully", "green"))
-    else:
-        print(color_text("GeneMarkS container already imported in podman", "green"))
+    # Native execution by default; podman/docker as fallback (see run_podman.py)
+    prepare_genemark()
 
     # # Caminho para a pasta do GeneMarkS
     genemarks_dir = os.path.abspath(os.path.join(primary_script_path, "genemarks"))
@@ -1010,6 +998,8 @@ def run_analysis():
         SeqIO.write(sequences, tmp_genemarks_GBK, "genbank")
     except Exception as e:
         print(color_text(f"Error on GeneMarkS: {e}", "red"))
+        print(color_text("GeneMarkS predictions are missing and PELICAN needs them to build the consensus. "
+                         f"Check {os.path.join(tmp_dir, 'genemark_execution.log')} or run 'pelican-setup'.", "red"))
         genemarks_df = pd.DataFrame(columns=["ORF", "Start", "End", "Strand", "Sequence", "Tool"])
     
     ############################################################

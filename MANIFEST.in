@@ -1,7 +1,14 @@
 include README.md
 include LICENSE
-include requirements.txt
-include INSTALL_GUIDE.md
+include environment.yml
+recursive-include envs *
 recursive-include pelican/databases *
-recursive-include pelican/models *
-recursive-include pelican/genemarks *
+include pelican/models/*.py
+include pelican/models/cnn_autoencoder_trained.pt
+include pelican/models/minmax_scaler.pkl
+include pelican/genemarks/python_wrapper.py
+recursive-include pelican/genemarks/podman_genemarks *
+recursive-include pelican/genemarks/gmsuite *
+recursive-include pelican/genemarks/selftest *
+prune pelican/test_data
+global-exclude __pycache__ *.py[cod]
