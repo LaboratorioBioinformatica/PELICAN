@@ -159,3 +159,23 @@ EOF
 
 Test genomes are available in the folder [test_data](pelican/test_data).  
 For the same test genomes, pre-run results are available in the folder [test_results](pelican/test_data/test_results).
+
+
+## Citation
+
+```latex
+@article{rossi2026pelican,
+  author  = {Rossi, Fernando P. N. and Uceda-Campos, Guillermo and
+             Cardoso, Guilherme Wenceslau de Lima and
+             Franco, Pedro Rossi de Andrade and Setubal, Jo{\~a}o Carlos},
+  title   = {{PELICAN}: A New Bacteriophage Genome Annotation Tool},
+  journal = {BMC Bioinformatics},
+  year    = {2026},
+  month   = oct,
+  note    = {Ahead of print, published online 22 October 2026},
+  doi     = {10.1186/s12859-026-06703-w},
+  url     = {https://doi.org/10.1186/s12859-026-06703-w}
+}
+```
+
+Rossi, Fernando P. N., Guillermo Uceda-Campos, Guilherme Wenceslau de Lima Cardoso, Pedro Rossi de Andrade Franco, and João Carlos Setubal. 2026. “PELICAN: A New Bacteriophage Genome Annotation Tool.” BMC Bioinformatics, ahead of print, October 22. https://doi.org/10.1186/s12859-026-06703-w.
